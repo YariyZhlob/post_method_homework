@@ -1,18 +1,34 @@
-trigger: 
-- main # triggered when a new block of code is detected in your repository
+parameters: # Parametrize test run by scopes
+- name: subscription # This will add 2 options as a button on ADO to run selected scope by manual trigger
+  displayName: Scopes
+  type: string
+  default: regression # Default value in case if pipelines started not by manual trigger
+  values:
+  - smoke
+  - regression
+
+schedules: # Pipelines will run automatically on a daily basis using CRON syntax
+- cron: "0 0 * * *"
+  displayName: Daily midnight build
+  branches:
+    include:
+    - main
+
+trigger:
+- main
 
 pool:
-   vmImage: 'windows-latest' # the virtual machine where your code will run, you can choose another OS
+   vmImage: 'windows-latest'
 
 steps:
-- task: UsePythonVersion@0 # Python installation task
+- task: UsePythonVersion@0
   inputs:
     versionSpec: '3.9'
     addToPath: true
     architecture: 'x64'
 
 - script: |
-- task: CmdLine@2 # Task to upgrade pip and install dependencies in a virtual machine, for another programming language, replace the commands
+- task: CmdLine@2
   inputs:
     script: |
       python -m pip install --upgrade pip
@@ -20,13 +36,17 @@ steps:
   displayName: 'Install dependencies'
 
 
-- task: CmdLine@2 # Running tests using pytest command, for another programming language, replace the command
+- task: CmdLine@2
   inputs:
-    script: |
-      pytest
+    ${{ if contains(parameters.subscription, 'smoke') }}: # Condition to run only smoke tests. Should be configurated in pytest.ini config file in case if you're using Pytest
+      script: |
+        pytest -m smoke
+    ${{ if contains(parameters.subscription, 'regression') }}: # Condition to run pytest with default run options
+      script: |
+        pytest
   displayName: 'pytest'
 
-- task: PublishTestResults@2 # Task to publish test results
+- task: PublishTestResults@2
   inputs:
     testResultsFormat: 'JUnit'
     testResultsFiles: 'result.xml'
